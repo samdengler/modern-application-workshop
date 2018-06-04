@@ -17,7 +17,7 @@ The site will present mysfits available for adoption with some different charact
 
 ### Application Architecture
 
-The website serves it's static content directly from Amazon S3, provides a microservice API backend deployed as a container through AWS Fargate on Amazon ECS, stores data in a managed NoSQL database provided by Amazon DynamoDB, with authentication and authorization for the application enabled through AWS API Gateway and it's integration with Amazon Cognito.  The user behavior will be sent as records to an Amazon Kinesis stream where those records will be processed by serverless AWS Lambda functions and eventually stored in Amazon S3 via an Amazon Kinesis Firehose.
+The website serves its static content directly from Amazon S3, provides a microservice API backend deployed as a container through AWS Fargate on Amazon ECS, stores data in a managed NoSQL database provided by Amazon DynamoDB, with authentication and authorization for the application enabled through AWS API Gateway and it's integration with Amazon Cognito.  The user behavior will be sent as records to an Amazon Kinesis stream where those records will be processed by serverless AWS Lambda functions and eventually stored in Amazon S3 via an Amazon Kinesis Firehose.
 
 You will be creating and deploying changes to this application completely programmatically.  We have provided AWS CloudFormation templates that define the required infrastructure components as code, which includes a fully managed CI/CD stack utilizing AWS CodeCommit, CodeBuild, and CodePipeline.  Finally, you will complete the development tasks required all within your own browser by leveraging the cloud-based IDE, AWS Cloud9.
 
@@ -88,7 +88,7 @@ aws cloudformation describe-stacks --stack-name MythicalMysfitsWebsiteBucket
 When you see the StackStatus of “CREATE_COMPLETE”, your S3 bucket has been created.  Find the “Outputs” object within the response to find the HTTPS URL that you can use to access your new website, save this for reference.  Also, within the URL you can find the name of the S3 bucket that has been created.  Save this for reference as well, the bolded section below represents the bucket name that can be found within the Output S3BucketSecureURL:
 
 ```
-{
+                {
                     "Description": "Name of S3 bucket to hold website content",
                     "OutputKey": "S3BucketSecureURL",
                     "OutputValue": "https://_**mythicalmysfitswebsitebucket-s3bucket-xxxxx**_.amazonaws.com"
@@ -111,11 +111,13 @@ That concludes Module 1.
 
 # Module 2: Creating a Service with AWS Fargate
 
-In Module 2, you will create a new microservice hosted with AWS Fargate on Amazon Elastic Container Service so that your Mythical Mysfits website can have a application backend to integrate with. AWS Fargate is a feature of Amazon ECS that allows you to deploy containers without having to manage any clusters or servers. For our Mythical Mysfits backend, we will use Python and create a Flask app in a Docker container behind a Network Load Balancer. These will form the microservice backend for the frontend website to integrate with.
+In Module 2, you will create a new microservice hosted with AWS Fargate on Amazon Elastic Container Service so that your Mythical Mysfits website can have an application backend to integrate with. AWS Fargate is a feature of Amazon ECS that allows you to deploy containers without having to manage any clusters or servers. For our Mythical Mysfits backend, we will use Python and create a Flask app in a Docker container behind a Network Load Balancer. These will form the microservice backend for the frontend website to integrate with.
 
 ### Module 2a: Creating the Core Infrastructure
 
 Before we can create our service, we need to create the core infrastructure environment that the service will use, including the networking infrastructure in Amazon VPC, and the AWS Identity and Access Management Roles that will define the permissions that ECS and our containers will have on top of AWS.  It is common on many teams to have separate teams with elevated access in AWS that are responsible for creating and modifying Network and Security resources. We have followed that model here to demonstrate how CloudFormation can help enforce separation of duties on AWS for your team through modular templates.  We have provided a CloudFormation template to create all of the necessary Network and Security resources in /cfn-templates/core.yml.  This template will create the following resources:
+
+*[fsd: what to do if a VPC with this CIDR already exists?]*
 
 * An Amazon VPC - a network environment that contains four subnets (two public and two private) in the 10.0.0.0/16 private IP space, as well as all the needed Route Table configurations.
 * Two NAT Gateways (one for each public subnet) - allows the containers we will eventually deploy into our private subnets to communicate out to the Internet to download necessary packages, etc.
@@ -151,6 +153,7 @@ cd ~/environment/aws-modern-application-workshop/module-2/app
 ```
 
 * Then build the docker image, this will use the file in the current directory called Dockerfile that tells Docker all of the instructions that should take place when the build command is executed. Replace the contents in {braces} below with the appropriate information from the account/region you're working in:
+*[fsd: How does the user determine their account number and region?]*
 
 ```
 docker build . -t {aws_account_id}.dkr.ecr.{us-east-1}.amazonaws.com/mythicalmysfits/service:latest
@@ -182,6 +185,8 @@ Within the new terminal window, we will use cURL to send a request to our locall
 ```
 curl 0.0.0.0:8080/mysfits
 ```
+
+*[fsd: Maybe use the Cloud9 browser instead of curl?  https://docs.aws.amazon.com/cloud9/latest/user-guide/app-preview.html#app-preview-preview-app]*
 
 If successful you will see a response from the service that returns the JSON document stored at /modern-application-workshop/module-2/app/service/mysfits-response.json
 
@@ -225,6 +230,8 @@ To create these resources using the CloudFormation template included, run the fo
 aws cloudformation create-stack --stack-name MythicalMysfitsServiceStack --template-body file://~/environment/modern-application-workshop/cfn-templates/service.yml
 ```
 
+*[fsd: I had an error here - Unable to assume the service linked role. Please verify that the ECS service linked role exists.  Deleted and recreated stack]*
+
 Once the stack has been created, let's try sending a request to the network load balancer (NLB) to confirm our service is up and available.  To find the URL of the NLB, execute the following command in the terminal to see the outputs we have configured in the MythicalMysfitsCoreStack we created earlier with CloudFormation:
 
 ```
@@ -241,6 +248,8 @@ In the response JSON, you will see an Output listed called “ExternalUrl”, wh
                     "OutputValue": "_**http://Mythi-Publi-123456789-abc123456.elb.us-east-1.amazonaws.com**_"
                 }
 ```
+
+*[fsd: The ExternalUrl is missing `/mysfits`]*
 
 Let's copy that URL and send a request to it using the cURL command again in the terminal (or by simply a web browser, since this time our service is available on the Internet):
 
@@ -278,7 +287,7 @@ In this module, you will create a fully managed CI/CD stack that will automatica
 First, let's delete the repository you created by hand during the last module so that CloudFormation can create it anew as part of this holistic CI/CD stack.  Run the following in the terminal:
 
 ```
-aws ecr delete-repository —repository-name mythicalmysfits/service —force
+aws ecr delete-repository --repository-name mythicalmysfits/service --force
 ```
 
 **Note:** In a real-world scenario, you would more typically create this CI/CD stack as development begins and then create the service stack once you need to first deploy the code you've written.  But, for this workshop we had you create the service first to become familiar with its concepts before deploying to it with automation.
@@ -294,7 +303,7 @@ When that stack has been created successfully, we first must integrate our Cloud
 First, we need to generate git credentials to interact with the created repository. AWS CodeCommit provides a credential helper for git that we will use to make integration easy.  Run the following commands in sequence the terminal (neither will report any response if successful):
 
 ```
-`git config --global user.name "*Your Name*"`
+git config --global user.name "*Your Name*"
 ```
 
 ```
@@ -353,7 +362,7 @@ Now that you have a service deployed and a working CI/CD pipeline to deliver cha
 
 ### Creating A DynamoDB Table using Cloudformation
 
-To add the DynamoDB table to the architecture, we have included another CloudFormation template that contains the resource definition required to create a table called **MysfitsTable**. This table will have a primary index defined by a hash key attribute called **MysfitId,** and two more secondary indexes.  The first secondary index will have the hash key of **Species** and a range key of **MysfitId, **and the second secondary index will have the hash key of **Alignment** and a range key of **MysfitId.  **These two secondary indexes will allow us to execute queries against the table to retrieve all of the mysfits that match a given Species or Alignment to enable the filter functionality you may have noticed isn't yet working on the website.
+To add the DynamoDB table to the architecture, we have included another CloudFormation template that contains the resource definition required to create a table called **MysfitsTable**. This table will have a primary index defined by a hash key attribute called **MysfitId,** and two more secondary indexes.  The first secondary index will have the hash key of **Species** and a range key of **MysfitId,** and the second secondary index will have the hash key of **Alignment** and a range key of **MysfitId.**  These two secondary indexes will allow us to execute queries against the table to retrieve all of the mysfits that match a given Species or Alignment to enable the filter functionality you may have noticed isn't yet working on the website.
 
 To create the table using CloudFormation, execute the following command in the Cloud9 terminal:
 
@@ -382,7 +391,7 @@ aws dynamodb scan --table-name MysfitsTable
 }
 ```
 
-Also provided is a JSON file that can be used to batch insert a number of Mysfit items into this table.  This will be accomplished through the DynamoDB API **BatchWriteItem. **To call this API using the provided JSON file, execute the following terminal command (the response from the service should report that there are no items that went unprocessed):
+Also provided is a JSON file that can be used to batch insert a number of Mysfit items into this table.  This will be accomplished through the DynamoDB API **BatchWriteItem.**  To call this API using the provided JSON file, execute the following terminal command (the response from the service should report that there are no items that went unprocessed):
 
 ```
 aws dynamodb batch-write-item --request-items file://~/environment/modern-application-workshop/lib/populate-dynamodb.json
@@ -398,7 +407,7 @@ aws dynamodb scan --table-name MysfitsTable
 
 Now that we have our data included in the table, let's modify our application code to read from this table instead of returning the static JSON file response that was used in Module 2.  We have included a new set of Python files for your Flask microservice, but now instead of reading the static JSON file will make a request to DynamoDB.
 
-The request is formed using the AWS Python SDK called **boto3.** This SDK is a powerful yet simple way to interact with AWS services via Python code. It enables you to use service client definitions and functions that have great symmetry with the AWS APIs and CLI commands you've already been executing as part of this workshop.  Translating those commands to working Python code is simple when using boto3**.  **To copy the new files into your CodeCommit repository directory, execute the following command in the terminal:
+The request is formed using the AWS Python SDK called **boto3.** This SDK is a powerful yet simple way to interact with AWS services via Python code. It enables you to use service client definitions and functions that have great symmetry with the AWS APIs and CLI commands you've already been executing as part of this workshop.  Translating those commands to working Python code is simple when using **boto3.**  To copy the new files into your CodeCommit repository directory, execute the following command in the terminal:
 
 ```
 cp ~/environment/modern-application-workshop/module-3/app/service/* ~/environment/MythicalMysfitsService-Repository/service/
@@ -438,12 +447,12 @@ That concludes module 3.
 
 # Module 4: Adding User and API features with Amazon API Gateway and AWS Cognito
 
-In order to add some more critical aspects to the Mythical Mysfits website, like allowing users to vote for their favorite mysfit and adopt a mysfit, we need to first have users register on the website.  To enable registration and authentication of website users, we will create a User Pool in AWS Cognito - a fully managed user identity management service .  Then, to make sure that only registered users are authorized to like or adopt mysfits on the website, we will deploy an API with Amazon API Gateway to sit in front of our network load balancer. Amazon API Gateway is also a managed service, and provides critical REST API capabilities out of the box like SSL termination, request authorization, request throttling, and much more.
+In order to add some more critical aspects to the Mythical Mysfits website, like allowing users to vote for their favorite mysfit and adopt a mysfit, we need to first have users register on the website.  To enable registration and authentication of website users, we will create a User Pool in AWS Cognito - a fully managed user identity management service.  Then, to make sure that only registered users are authorized to like or adopt mysfits on the website, we will deploy an API with Amazon API Gateway to sit in front of our network load balancer. Amazon API Gateway is also a managed service, and provides critical REST API capabilities out of the box like SSL termination, request authorization, request throttling, and much more.
 You will again use infrastructure as code through CloudFormation to deploy the needed resources to AWS. The CloudFormation template for this module is called **service-with-apigw.yml**. It contains the same resources as the previous Service CloudFormation templates with the following additions:
 
-* The** Cognito User Pool **described above.
+* The **Cognito User Pool** described above.
 * The **Amazon API Gateway** **REST API** described above.
-* An **Amazon API Gateway VPC Link** that enables APIs created with API Gateway to privately communicate with a service fronted by a Network Load Balancer like we deployed during this workshop.  **Note: **For the purposes of this workshop, we created the NLB to be internet-facing so that it could be called directly in earlier modules. So even though we will be requiring Authorization tokens in our API after this module, our NLB will still actually be open to the public behind the API Gateway API.  In a real-world scenario, you would have created your NLB to be internal from the beginning, knowing that API Gateway was your strategy for Internet-facing API authorization.
+* An **Amazon API Gateway VPC Link** that enables APIs created with API Gateway to privately communicate with a service fronted by a Network Load Balancer like we deployed during this workshop.  **Note:** For the purposes of this workshop, we created the NLB to be internet-facing so that it could be called directly in earlier modules. So even though we will be requiring Authorization tokens in our API after this module, our NLB will still actually be open to the public behind the API Gateway API.  In a real-world scenario, you would have created your NLB to be internal from the beginning, knowing that API Gateway was your strategy for Internet-facing API authorization.
 
 Another change to this CloudFormation template uses the AWS **Serverless Application Model (SAM)** to define the new API. You can see this by looking at the second line of the template, where a Transform section is defined:
 
@@ -476,10 +485,10 @@ Below is an example output you should find in the response to the above command 
 ```
 
 Copy the OutputValue to be used in the following step.
-Open the new version of the Mythical Mysfits index.html file we will push to S3 shortly, it is located at: **~/environment/modern-application-workshop/module-4/app/web/index.html**
+Open the new version of the Mythical Mysfits index.html file we will push to S3 shortly, it is located at: **~/environment/modern-application-workshop/module-4/web/index.html**
 In this new index.html file, you'll notice additional HTML and JavaScript code that is being used to add a user registration and login experience.  This code is interacting with the AWS Cognito JavaScript SDK to help manage registration, authentication, and authorization to all of the API calls that require it.
 
-In this file, replace the string REPLACE_ME'inside the single quotes with the endpoint OutputValue you copied from above and save the file:
+In this file, replace the string 'REPLACE_ME' inside the single quotes with the endpoint OutputValue you copied from above and save the file:
 
 
 Now, lets copy this file up to the S3 bucket hosting our Mythical Mysfits website so that our new page is available on the Internet:
@@ -488,6 +497,11 @@ Now, lets copy this file up to the S3 bucket hosting our Mythical Mysfits websit
 aws s3 cp ~/environment/modern-application-workshop/module-4/web/index.html s3://YOUR-S3-BUCKET/index.html
 ```
 
+*[fsd: need to copy more files here, not just index.html.  `
+aws s3 cp ~/environment/modern-application-workshop/module-4/web/ s3://YOUR-S3-BUCKET/index.html --recursive`*
+
 Refresh the Mythical Mysfits website in your browser to see the new functionality in action!
+
+*[fsd: On registration, I get a browser model window that displays: "...t-s3bucket-17zf1636s7uiz.s3-website-us-east-1.amazonaws.com/register.html says [object Object]" and it doesn't do anything else.]*
 
 This concludes Module 4.
